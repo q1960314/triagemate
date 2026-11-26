@@ -1,0 +1,130 @@
+modules:
+  jira:issuePanel:
+    - key: triagemate-hello-world-issue-panel
+      resource: main
+      resolver:
+        function: resolver
+      render: native
+      title: TriageMate
+      icon: https://developer.atlassian.com/platform/forge/images/icons/issue-panel-icon.svg
+  rovo:agent:
+    - key: triage-agent
+      name: Triage Agent
+      description: "Triages a Jira issue: proposes priority, labels and an owner, with reasons that cite real issue fields."
+      prompt: resource:triage-prompt;prompt.md
+      conversationStarters:
+        - Triage this issue
+        - Why this priority?
+        - Who should own this?
+      actions:
+        - fetch-issue
+        - fetch-related-issues
+        - suggest-triage
+        - apply-triage
+      followUpPrompt: |
+        Based on the triage suggestion you just gave, propose one useful follow-up question the user could ask next, such as asking for the evidence behind a different priority or asking to apply the suggestion.
+  rovo:mcp:
+    - key: triage-mcp
+      name: Triage MCP
+      tools:
+        - fetch-issue
+        - fetch-related-issues
+        - suggest-triage
+        - apply-triage
+  action:
+    - key: fetch-issue
+      name: Fetch a Jira issue
+      function: fetchIssue
+      actionVerb: GET
+      description: |
+        Fetches a Jira issue by its key and returns its summary, description, type, status, priority, labels, assignee, reporter and linked issues.
+      inputs:
+        issueKey:
+          title: Jira issue key
+          type: string
+          required: true
+          description: The key of the Jira issue to fetch, for example PROJ-123.
+    - key: fetch-related-issues
+      name: Fetch related issues and triage context
+      function: fetchRelatedIssues
+      actionVerb: GET
+      description: |
+        Fetches a Jira issue plus its triage context: linked issues, the 20 most recently updated issues in the same project, the labels actually used in the project, and who recently handled similar issues.
+      inputs:
+        issueKey:
+          title: Jira issue key
+          type: string
+          required: true
+          description: The key of the Jira issue to fetch context for, for example PROJ-123.
+    - key: suggest-triage
+      name: Suggest a triage for a Jira issue
+      function: suggestTriage
+      actionVerb: GET
+      description: |
+        Produces the four-item triage suggestion for a Jira issue: priority with a one-line reason, labels (0-3, from the project's existing labels), a suggested owner or "无人选", and confidence with evidence. Every reason cites real issue fields.
+      inputs:
+        issueKey:
+          title: Jira issue key
+          type: string
+          required: true
+          description: The key of the Jira issue to triage, for example PROJ-123.
+    - key: apply-triage
+      name: Apply a triage suggestion
+      function: applyTriage
+      actionVerb: UPDATE
+      description: |
+        Applies a triage suggestion to a Jira issue: sets its priority, labels and assignee. Only pass values that came from the suggest-triage action output for the same issue.
+      inputs:
+        issueKey:
+          title: Jira issue key
+          type: string
+          required: true
+          description: The key of the Jira issue to update, for example PROJ-123.
+        priority:
+          title: Priority
+          type: string
+          required: false
+          description: One of Highest, High, Medium, Low, Lowest. Omit to leave the priority unchanged.
+        labels:
+          title: Labels
+          type: string
+          required: false
+          description: A comma-separated list of up to three labels, each already used on issues in the same project. Omit or leave empty to leave labels unchanged.
+        assigneeAccountId:
+          title: Assignee account ID
+          type: string
+          required: false
+          description: The Atlassian account ID of the suggested owner. Omit when the suggestion is "无人选" (no suitable owner).
+  function:
+    - key: resolver
+      handler: index.handler
+    - key: fetchIssue
+      handler: index.fetchIssue
+    - key: fetchRelatedIssues
+      handler: index.fetchRelatedIssues
+    - key: suggestTriage
+      handler: index.suggestTriage
+    - key: applyTriage
+      handler: index.applyTriage
+resources:
+  - key: main
+    path: src/frontend/index.jsx
+  - key: triage-prompt
+    path: prompts
+permissions:
+  scopes:
+    - read:jira-work
+    - write:jira-work
+app:
+  runtime:
+    name: nodejs24.x
+    memoryMB: 256
+    architecture: arm64
+  id: ari:cloud:ecosystem::app/4e351d1a-3190-4442-b38a-cb2b8fabb492
+  rovo:
+    tag: triage
+    description: "Triage Jira issues with an AI agent: priority, labels and owner suggestions."
+    keywords:
+      - triage
+      - jira
+      - agent
